@@ -4,6 +4,7 @@
 
 import { ContractInvokeOptions, DriverProfile, DriverStatus, DriverTier, ReputationConfig, UserProfile } from '../types/common.types';
 import * as IdentityReputationTypes from '../types/identity_reputation.types';
+import { ReputationAwardedEvent, ReputationIncreasedEvent } from '../types/identity_reputation.types';
 import { ContractInvoker, ScVal, address, bool, map, u32, u64 } from './invoker';
 
 export class IdentityReputationClient {
@@ -189,4 +190,47 @@ function decodeDriverStatus(value: unknown): DriverStatus {
   return status === DriverStatus.Suspended
     ? DriverStatus.Suspended
     : DriverStatus.Active;
+}
+
+/**
+ * Decodes the data emitted by `increase_reputation`.
+ *
+ * Consumers must use `appliedDelta` (the actual before/after score difference)
+ * rather than `requestedPoints` when reconstructing on-chain reputation, since
+ * the score is capped at MAX_REPUTATION.
+ */
+export function decodeReputationIncreasedEvent(value: unknown): ReputationIncreasedEvent {
+  const event = value as Record<string, unknown>;
+  const requestedPoints = Number(event.requested_points ?? event.points ?? 0);
+  const oldScore = Number(event.old_score ?? 0);
+  const newScore = Number(event.new_score ?? oldScore);
+  return {
+    driver: String(event.driver),
+    deliveryId: Number(event.delivery_id ?? 0),
+    requestedPoints,
+    appliedDelta: Number(event.applied_delta ?? newScore - oldScore),
+    oldScore,
+    newScore,
+  };
+}
+
+/**
+ * Decodes the data emitted by `award_reputation`.
+ *
+ * Consumers must use `appliedDelta` (the actual before/after score difference)
+ * rather than `requestedPoints` when reconstructing on-chain reputation, since
+ * the score is capped at MAX_REPUTATION.
+ */
+export function decodeReputationAwardedEvent(value: unknown): ReputationAwardedEvent {
+  const event = value as Record<string, unknown>;
+  const requestedPoints = Number(event.requested_points ?? event.points ?? 0);
+  const oldScore = Number(event.old_score ?? 0);
+  const newScore = Number(event.new_score ?? oldScore);
+  return {
+    driver: String(event.driver),
+    requestedPoints,
+    appliedDelta: Number(event.applied_delta ?? newScore - oldScore),
+    oldScore,
+    newScore,
+  };
 }
